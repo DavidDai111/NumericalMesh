@@ -90,10 +90,7 @@ bool is_in_circumcircle(const Vertex& p, const Vertex& v1, const Vertex& v2, con
  *  @param triangles 三角形数组。
  */
 void generate_super_triangle(std::vector<Vertex>& vertices, std::vector<Triangle>& triangles) {
-    float min_x = std::numeric_limits<float>::max();
-    float min_y = std::numeric_limits<float>::max();
-    float max_x = std::numeric_limits<float>::lowest();
-    float max_y = std::numeric_limits<float>::lowest();
+    double min_x = 1e9, min_y = 1e9, max_x = -1e9, max_y = -1e9;
 
     for (const auto& vertex : vertices) {
         if (vertex.x < min_x) min_x = vertex.x;
@@ -102,10 +99,10 @@ void generate_super_triangle(std::vector<Vertex>& vertices, std::vector<Triangle
         if (vertex.y > max_y) max_y = vertex.y;
     }
 
-    float dx = max_x - min_x;
-    float dy = max_y - min_y;
-    float mid_x = (min_x + max_x) / 2.0;
-    float mid_y = (min_y + max_y) / 2.0;
+    double dx = max_x - min_x;
+    double dy = max_y - min_y;
+    double mid_x = (min_x + max_x) / 2.0;
+    double mid_y = (min_y + max_y) / 2.0;
 
     Vertex v1 = { mid_x - 2 * dx, mid_y - dy, 0, 0 };
     Vertex v2 = { mid_x + 2 * dx, mid_y - dy, 0, 0 };
@@ -114,10 +111,7 @@ void generate_super_triangle(std::vector<Vertex>& vertices, std::vector<Triangle
     vertices.push_back(v2);
     vertices.push_back(v3);
 
-    Triangle super_tri;
-    super_tri.v1 = vertices.size() - 3;
-    super_tri.v2 = vertices.size() - 2;
-    super_tri.v3 = vertices.size() - 1;
+    Triangle super_tri = { vertices.size() - 3, vertices.size() - 2, vertices.size() - 1 };
     triangles.push_back(super_tri);
 }
 
@@ -217,16 +211,15 @@ void construct_delaunay(std::vector<Vertex>& vertices, std::vector<Triangle>& tr
  *
  *  @param vertices 顶点数组。
  *  @param triangles 三角形数组。
- *  @param matrix 系数矩阵。
+ *  @param mat_data 存放稀疏矩阵所有非零元素。
+ *  @param indices 记录对应元素在原始矩阵中的列信息。
+ *  @param ptr 每行在mat_data中的起始位置。
  *  @param vector 右侧向量。
  *  @param n 顶点数量。
  */
 void construct_equation(const std::vector<Vertex>& vertices, const std::vector<Triangle>& triangles,
     std::vector<double>& mat_data, std::vector<int>& indices, std::vector<int>& ptr,
-    double* vector, size_t n) {
-    for (int i = 0; i < n; ++i) {
-        vector[i] = 0;
-    }
+    std::vector<double>& vector, size_t n) {
 
     for (int i = 0; i < n; ++i) {
         ptr.push_back(mat_data.size());
@@ -249,6 +242,7 @@ void construct_equation(const std::vector<Vertex>& vertices, const std::vector<T
         for (int j = 0; j < n; ++j) {
             row_data[j] = 0;
         }
+
         for (int j = 0; j < triangle_indices.size(); ++j) {
             const Triangle& T = triangles[triangle_indices[j]];
             int v1 = T.v1, v2 = T.v2;
@@ -276,6 +270,7 @@ void construct_equation(const std::vector<Vertex>& vertices, const std::vector<T
                 indices.push_back(j);
             }
         }
+
         delete[] row_data;
     }
     ptr.push_back(mat_data.size());
@@ -284,25 +279,23 @@ void construct_equation(const std::vector<Vertex>& vertices, const std::vector<T
 /**
  *  @brief 使用雅可比迭代法求解线性系统。
  *
- *  @param A 系数矩阵。
- *  @param b 右侧向量。
+ *  @param mat_data 存放稀疏矩阵所有非零元素。
+ *  @param indices 记录对应元素在原始矩阵中的列信息。
+ *  @param ptr 每行在mat_data中的起始位置。
+ *  @param vector 右侧向量。
  *  @param x 解向量。
  *  @param n 矩阵大小。
  *  @param maxIter 最大迭代次数。
  *  @param tol 迭代停止的容差。
  */
 void jacobi_method(std::vector<double>& mat_data, std::vector<int>& indices, std::vector<int>& ptr,
-    double* vector, double* x, int n, int maxIter, double tol) {
-    double* x_old = new double[n];
-    for (int i = 0; i < n; ++i) {
-        x[i] = 0.0;
-    }
+    std::vector<double>& vector, std::vector<double>& x, int n, int maxIter, double tol) {
+    std::vector<double> x_old(n, 0.0);
 
     for (int iter = 0; iter < maxIter; ++iter) {
         for (int i = 0; i < n; ++i) {
             x_old[i] = x[i];
         }
-
         for (int i = 0; i < n; ++i) {
             double sigma = 0.0, div;
             for (int j = ptr[i]; j < ptr[i + 1]; ++j) {
@@ -321,13 +314,10 @@ void jacobi_method(std::vector<double>& mat_data, std::vector<int>& indices, std
             norm += (x[i] - x_old[i]) * (x[i] - x_old[i]);
         }
         norm = std::sqrt(norm);
-
         if (norm < tol) {
             break;
         }
     }
-
-    delete[] x_old;
 }
 
 /**
@@ -341,16 +331,16 @@ void Solution(std::vector<Vertex>& vertices, std::vector<Triangle>& triangles)
     size_t n = vertices.size();
     std::vector<double> mat_data;
     std::vector<int> indices, ptr;
-    double* vector = new double[n];
-    double* result = new double[n];
+    std::vector<double> vector(n, 0.0);
+    std::vector<double> result(n, 0.0);
+
     construct_delaunay(vertices, triangles);
     construct_equation(vertices, triangles, mat_data, indices, ptr, vector, n);
     jacobi_method(mat_data, indices, ptr, vector, result, n, 1000, 1e-6);
+
     for (int i = 0; i < n; ++i) {
         vertices[i].phi = result[i];
     }
-    delete[] vector;
-    delete[] result;
 }
 
 int main() {
