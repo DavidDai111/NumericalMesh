@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL OBJ Viewer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="sidebar">
+        <input type="file" id="file-input" accept=".obj" multiple>
+        <ul id="file-list"></ul>
+    </div>
+    <div id="container">
+        <canvas id="glcanvas"></canvas>
+    </div>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/gl-matrix@2.8.1/dist/gl-matrix-min.js"></script> -->
+    <script src="scripts/gl-matrix-min.js"></script>
+    <script src="scripts/OBJLoader.js"></script>
+    <script src="scripts/main.js"></script>
+</body>
+</html>
